@@ -1,5 +1,3 @@
-import pdb
-
 from math import sqrt
 from random import random
 from functools import partial
@@ -74,7 +72,7 @@ def log(t, eps = 1e-20):
 
 # main class
 
-class ElucidatedImagen(nn.Module):
+class physics_ElucidatedImagen(nn.Module):
     def __init__(
             self,
             unets,
@@ -352,6 +350,7 @@ class ElucidatedImagen(nn.Module):
         )
 
         out = self.c_skip(sigma_data, padded_sigma) * noised_images + self.c_out(sigma_data, padded_sigma) * net_out
+
         if not clamp:
             return out
 
@@ -385,7 +384,7 @@ class ElucidatedImagen(nn.Module):
             shape,
             *,
             unet_number,
-            clamp=False, # Han Gao make it Flase
+            clamp=True,
             dynamic_threshold=True,
             cond_scale=1.,
             use_tqdm=True,
@@ -396,8 +395,6 @@ class ElucidatedImagen(nn.Module):
             skip_steps=None,
             sigma_min=None,
             sigma_max=None,
-            physics_guidance = None,
-            args_sample = None,
             **kwargs
     ):
         # get specific sampling hyperparameters for unet
@@ -424,11 +421,12 @@ class ElucidatedImagen(nn.Module):
         init_sigma = sigmas[0]
 
         images = init_sigma * torch.randn(shape, device=self.device)
+
         # initializing with an image
 
         if exists(init_images):
             images += init_images
-            
+
         # keeping track of x0, for self conditioning if needed
 
         x_start = None
@@ -472,59 +470,14 @@ class ElucidatedImagen(nn.Module):
                 eps = hp.S_noise * torch.randn(shape, device=self.device)  # stochastic sampling
 
                 sigma_hat = sigma + gamma * sigma
-                
-                
-                
-                                
-                added_noise = sqrt(sigma_hat ** 2 - sigma ** 2) * eps 
-                
-                
+                added_noise = sqrt(sigma_hat ** 2 - sigma ** 2) * eps
 
-                images_hat = images + added_noise 
+                images_hat = images + added_noise
 
                 self_cond = x_start if unet.self_cond else None
-                
-                    
+
                 if has_inpainting:
                     images_hat = images_hat * ~inpaint_masks + (inpaint_images + added_noise) * inpaint_masks
-                        
-
-                ###### start gudiance
-                if physics_guidance is not None:
-                    for phyguid in physics_guidance:
-                        num_ite = args_sample.num_ite[0] if not is_last_timestep else args_sample.num_ite[1]
-                        sigma_extra = args_sample.sigma_extra[0] if not is_last_timestep else args_sample.sigma_extra[1]
-                        beta_guide = args_sample.beta_guide[0] if not is_last_timestep else args_sample.beta_guide[1] #beta_guide = 0.0180 if not is_last_timestep else 0.0080
-                        RZ = lambda Z: phyguid(self.preconditioned_network_forward(unet.forward_with_cond_scale,
-                                                                                    Z.reshape(images_hat.shape),
-                                                                                    sigma_hat,
-                                                                                    self_cond=self_cond,
-                                                                                    **unet_kwargs))
-                        for ite in range(num_ite):
-                            dRdZ = torch.autograd.functional.jacobian(RZ, images_hat) 
-                            R_old = RZ(images_hat)
-                            guide =   -dRdZ/dRdZ.norm() * torch.max(torch.norm(added_noise),torch.norm(added_noise)*0+sigma_extra)  * beta_guide #
-                            #guide =   -dRdZ / dRdZ.norm() * torch.ones(dRdZ.shape).norm() * R_old.sqrt() * 10000
-                            #pdb.set_trace()
-                            images_hat = images_hat +  guide
-                            # images_hat = images_hat + torch.randn(shape, device=self.device)*sigma
-                            # images_hat = self.preconditioned_network_forward(unet.forward_with_cond_scale,
-                            #                                                         images_hat,
-                            #                                                         sigma_hat,
-                            #                                                         self_cond=self_cond,
-                            #                                                         **unet_kwargs)
-                            R = RZ(images_hat)
-                            if is_last_resample_step and is_last_timestep and ite % 9 ==0:
-                                print('Residual ' + str(R_old) + '->' +str(R) + ' Guide norm ' + str(guide.norm()))                 
-                else:
-                    beta_guide = 0
-                ##### end gudance
-
-                # if physics_guidance is not None:
-                #     try:
-                #         images_hat = images_hat + guide
-                #     except:
-                #         pass
 
                 model_output = self.preconditioned_network_forward(
                     unet.forward_with_cond_scale,
@@ -533,33 +486,13 @@ class ElucidatedImagen(nn.Module):
                     self_cond=self_cond,
                     **unet_kwargs
                 )
-                ##### start gudiance
-                # if physics_guidance is not None:
-                #     beta_guide = 0.05
-                #     for phyguid in physics_guidance:
-                #         RZ = lambda Z: phyguid(self.preconditioned_network_forward(unet.forward_with_cond_scale,
-                #                                                                    Z.reshape(images_hat.shape),
-                #                                                                    sigma_hat,
-                #                                                                    self_cond=self_cond,
-                #                                                                    **unet_kwargs))
-                #         dRdZ = torch.autograd.functional.jacobian(RZ, images_hat) 
-                #         R = RZ(images_hat)
-                #         guide =   -dRdZ/dRdZ.norm() * torch.norm((sigma_next - sigma_hat) * (images_hat - model_output) / sigma_hat) * beta_guide #0.01  
-                #         if is_last_resample_step and is_last_timestep:
-                #             print('Residual ' + str(R) + ' Guide norm ' + str(guide.norm()))
-                # else:
-                #     beta_guide = 0
-                #### end gudance
-                
+
                 denoised_over_sigma = (images_hat - model_output) / sigma_hat
 
-                
-                images_next = images_hat + (sigma_next - sigma_hat) * denoised_over_sigma #* (1-beta_guide)
-                
-                 
-                
+                images_next = images_hat + (sigma_next - sigma_hat) * denoised_over_sigma
 
                 # second order correction, if not the last timestep
+
                 has_second_order_correction = sigma_next != 0
 
                 if has_second_order_correction:
@@ -578,8 +511,6 @@ class ElucidatedImagen(nn.Module):
                                 denoised_over_sigma + denoised_prime_over_sigma)
 
                 images = images_next
-                # if physics_guidance is not None:
-                #     images = images + update
 
                 if has_inpainting and not (is_last_resample_step or is_last_timestep):
                     # renoise in repaint and then resample
@@ -587,12 +518,12 @@ class ElucidatedImagen(nn.Module):
                     images = images + (sigma - sigma_next) * repaint_noise
 
                 x_start = model_output if not has_second_order_correction else model_output_next  # save model output for self conditioning
-        if clamp:
-            images = images.clamp(-1., 1.)
+
+        images = images.clamp(-1., 1.)
 
         if has_inpainting:
             images = images * ~inpaint_masks + inpaint_images * inpaint_masks
-        
+
         return self.unnormalize_img(images)
 
     @torch.no_grad()
@@ -621,8 +552,6 @@ class ElucidatedImagen(nn.Module):
             return_pil_images=False,
             use_tqdm=True,
             device=None,
-            physics_guidance = None,
-            args_sample = None
     ):
         device = default(device, self.device)
         self.reset_unets_all_one_device(device=device)
@@ -731,8 +660,7 @@ class ElucidatedImagen(nn.Module):
                                                                               noise=torch.randn_like(lowres_cond_img))
 
                 if exists(unet_init_images):
-                    pass
-                    #unet_init_images = self.resize_to(unet_init_images, image_size)
+                    unet_init_images = self.resize_to(unet_init_images, image_size)
 
                 shape = (batch_size, self.channels, *frame_dims, image_size, image_width)
 
@@ -754,9 +682,7 @@ class ElucidatedImagen(nn.Module):
                     lowres_cond_img=lowres_cond_img,
                     lowres_noise_times=lowres_noise_times,
                     dynamic_threshold=dynamic_threshold,
-                    use_tqdm=use_tqdm,
-                    physics_guidance=physics_guidance,
-                    args_sample = args_sample
+                    use_tqdm=use_tqdm
                 )
 
                 outputs.append(img)
@@ -766,11 +692,13 @@ class ElucidatedImagen(nn.Module):
 
         output_index = -1 if not return_all_unet_outputs else slice(
             None)  # either return last unet output or all unet outputs
+
         if not return_pil_images:
             return outputs[output_index]
 
         if not return_all_unet_outputs:
             outputs = outputs[-1:]
+
         assert not self.is_video, 'automatically converting video tensor to video file for saving is not built yet'
 
         pil_images = list(map(lambda img: list(map(T.ToPILImage(), img.unbind(dim=0))), outputs))
@@ -786,6 +714,12 @@ class ElucidatedImagen(nn.Module):
     def noise_distribution(self, P_mean, P_std, batch_size):
         return (P_mean + P_std * torch.randn((batch_size,), device=self.device)).exp()
 
+    def fft(self,trajectory, dim=2):
+        return torch.fft.fft(trajectory, dim=dim)
+
+    def fft_inverse(self, trajectory_freq, dim=2):
+        return torch.real(torch.fft.ifft(trajectory_freq, dim=dim))
+
     def forward(
             self,
             images,  # rename to images or video
@@ -797,8 +731,6 @@ class ElucidatedImagen(nn.Module):
             cond_images=None,
             **kwargs
     ):
-        #images = images.to(self.device) # Han Gao added 
-        #cond_images = cond_images.to(self.device)
         if self.is_video and images.ndim == 4:
             images = rearrange(images, 'b c h w -> b c 1 h w')
             kwargs.update(ignore_time=True)
@@ -811,7 +743,6 @@ class ElucidatedImagen(nn.Module):
             self.only_train_unet_number) or self.only_train_unet_number == unet_number, 'you can only train on unet #{self.only_train_unet_number}'
 
         images = cast_uint8_images_to_float(images)
-        
         cond_images = maybe(cast_uint8_images_to_float)(cond_images)
 
         assert is_float_dtype(images.dtype), f'images tensor needs to be floats but {images.dtype} dtype found instead'
@@ -833,7 +764,7 @@ class ElucidatedImagen(nn.Module):
 
         check_shape(images, 'b c ...', c=self.channels)
 
-        # assert h >= target_image_size and w >= target_image_size # Han Gao comment out
+        assert h >= target_image_size and w >= target_image_size
 
         if exists(texts) and not exists(text_embeds) and not self.unconditional:
             assert all([*map(len, texts)]), 'text cannot be empty'
@@ -870,9 +801,12 @@ class ElucidatedImagen(nn.Module):
         # images = self.resize_to(images, target_image_size)
 
         # normalize to [-1, 1]
-        
+
         images = self.normalize_img(images)
         lowres_cond_img = maybe(self.normalize_img)(lowres_cond_img)
+        cond_images_freq = self.fft(cond_images[:,:3])
+
+
 
         # random cropping during training
 
@@ -907,8 +841,9 @@ class ElucidatedImagen(nn.Module):
 
         noise = torch.randn_like(images)
         noised_images = images + padded_sigmas * noise  # alphas are 1. in the paper
-            
+
         # unet kwargs
+
         unet_kwargs = dict(
             sigma_data=hp.sigma_data,
             text_embeds=text_embeds,
@@ -940,13 +875,18 @@ class ElucidatedImagen(nn.Module):
 
         # get prediction
 
-        denoised_images = self.preconditioned_network_forward(
+        delta_denoised_freq_images = self.preconditioned_network_forward(
             unet.forward,
             noised_images,
             sigmas,
             **unet_kwargs
         )
+
+        denoised_freq_images = delta_denoised_freq_images + cond_images_freq
+        denoised_images = self.fft_inverse(denoised_freq_images)
+
         # losses
+
         losses = F.mse_loss(denoised_images, images, reduction='none')
         losses = reduce(losses, 'b ... -> b', 'mean')
 

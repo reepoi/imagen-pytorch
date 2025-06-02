@@ -3,11 +3,11 @@ import torch
 from pathlib import Path
 import pkgutil
 
-from imagen_pytorch import load_imagen_from_checkpoint
-from imagen_pytorch.version import __version__
-from imagen_pytorch.data import Collator
-from imagen_pytorch.utils import safeget
-from imagen_pytorch import ImagenTrainer, ElucidatedImagenConfig, ImagenConfig
+from mimagen_pytorch import load_imagen_from_checkpoint
+from mimagen_pytorch.version import __version__
+from mimagen_pytorch.data import Collator
+from mimagen_pytorch.utils import safeget
+from mimagen_pytorch import ImagenTrainer, ElucidatedImagenConfig, ImagenConfig
 from datasets import load_dataset
 
 import json

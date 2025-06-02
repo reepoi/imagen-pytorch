@@ -1,5 +1,5 @@
 import json
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, root_validator
 from typing import List, Iterable, Optional, Union, Tuple, Dict, Any
 from enum import Enum
 

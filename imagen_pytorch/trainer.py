@@ -12,17 +12,16 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import random_split, DataLoader
 from torch.optim import Adam
-from lion_pytorch import Lion
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 from torch.cuda.amp import autocast, GradScaler
-
+import pdb
 import pytorch_warmup as warmup
 
-from imagen_pytorch.imagen_pytorch import Imagen, NullUnet
-from imagen_pytorch.elucidated_imagen import ElucidatedImagen
-from imagen_pytorch.data import cycle
+from mimagen_pytorch.imagen_pytorch import Imagen, NullUnet
+from mimagen_pytorch.elucidated_imagen import ElucidatedImagen
+from mimagen_pytorch.data import cycle
 
-from imagen_pytorch.version import __version__
+from mimagen_pytorch.version import __version__
 from packaging import version
 
 import numpy as np
@@ -254,7 +253,7 @@ class ImagenTrainer(nn.Module):
         checkpoint_fs = None,
         fs_kwargs: dict = None,
         max_checkpoints_keep = 20,
-        use_lion = False,
+        device = 'cuda:0',
         **kwargs
     ):
         super().__init__()
@@ -279,16 +278,18 @@ class ImagenTrainer(nn.Module):
         # create accelerator instance
 
         accelerate_kwargs, kwargs = groupby_prefix_and_trim('accelerate_', kwargs)
-
         assert not (fp16 and exists(precision)), 'either set fp16 = True or forward the precision ("fp16", "bf16") to Accelerator'
         accelerator_mixed_precision = default(precision, 'fp16' if fp16 else 'no')
-
         self.accelerator = Accelerator(**{
             'split_batches': split_batches,
             'mixed_precision': accelerator_mixed_precision,
             'kwargs_handlers': [DistributedDataParallelKwargs(find_unused_parameters = True)]
         , **accelerate_kwargs})
+        
 
+        self.accelerator.state.device = device
+        self.mydevice = device
+        
         ImagenTrainer.locked = self.is_distributed
 
         # cast data to fp16 at training time if needed
@@ -336,21 +337,13 @@ class ImagenTrainer(nn.Module):
         lr, eps, warmup_steps, cosine_decay_max_steps = map(partial(cast_tuple, length = self.num_unets), (lr, eps, warmup_steps, cosine_decay_max_steps))
 
         for ind, (unet, unet_lr, unet_eps, unet_warmup_steps, unet_cosine_decay_max_steps) in enumerate(zip(self.imagen.unets, lr, eps, warmup_steps, cosine_decay_max_steps)):
-
-            if use_lion:
-                optimizer = Lion(
-                    unet.parameters(),
-                    lr = unet_lr,
-                    betas = (beta1, beta2)
-                )
-            else:
-                optimizer = Adam(
-                    unet.parameters(),
-                    lr = unet_lr,
-                    eps = unet_eps,
-                    betas = (beta1, beta2),
-                    **kwargs
-                )
+            optimizer = Adam(
+                unet.parameters(),
+                lr = unet_lr,
+                eps = unet_eps,
+                betas = (beta1, beta2),
+                **kwargs
+            )
 
             if self.use_ema:
                 self.ema_unets.append(EMA(unet, **ema_kwargs))
@@ -386,10 +379,11 @@ class ImagenTrainer(nn.Module):
         self.verbose = verbose
 
         # automatic set devices based on what accelerator decided
+        self.imagen.to(self.device) # original
+        self.to(self.device) #original
 
-        self.imagen.to(self.device)
-        self.to(self.device)
 
+        
         # checkpointing
 
         assert not (exists(checkpoint_path) ^ exists(checkpoint_every))
@@ -479,6 +473,7 @@ class ImagenTrainer(nn.Module):
             self.unet_being_trained, self.train_dl, optimizer = self.accelerator.prepare(unet, self.train_dl, optimizer)
         else:
             self.unet_being_trained, optimizer = self.accelerator.prepare(unet, optimizer)
+            
 
         if exists(scheduler):
             scheduler = self.accelerator.prepare(scheduler)
@@ -489,23 +484,29 @@ class ImagenTrainer(nn.Module):
         self.one_unet_wrapped = True
 
     # hacking accelerator due to not having separate gradscaler per optimizer
-
     def set_accelerator_scaler(self, unet_number):
-        def patch_optimizer_step(accelerated_optimizer, method):
-            def patched_step(*args, **kwargs):
-                accelerated_optimizer._accelerate_step_called = True
-                return method(*args, **kwargs)
-            return patched_step
+         def patch_optimizer_step(accelerated_optimizer, method):
+             def patched_step(*args, **kwargs):
+                 accelerated_optimizer._accelerate_step_called = True
+                 return method(*args, **kwargs)
+             return patched_step
 
-        unet_number = self.validate_unet_number(unet_number)
-        scaler = getattr(self, f'scaler{unet_number - 1}')
+         unet_number = self.validate_unet_number(unet_number)
+         scaler = getattr(self, f'scaler{unet_number - 1}')
 
-        self.accelerator.scaler = scaler
-        for optimizer in self.accelerator._optimizers:
-            optimizer.scaler = scaler
-            optimizer._accelerate_step_called = False
-            optimizer._optimizer_original_step_method = optimizer.optimizer.step
-            optimizer._optimizer_patched_step_method = patch_optimizer_step(optimizer, optimizer.optimizer.step)
+         self.accelerator.scaler = scaler
+         for optimizer in self.accelerator._optimizers:
+             optimizer.scaler = scaler
+             optimizer._accelerate_step_called = False
+             optimizer._optimizer_original_step_method = optimizer.optimizer.step
+             optimizer._optimizer_patched_step_method = patch_optimizer_step(optimizer, optimizer.optimizer.step)
+    # def set_accelerator_scaler(self, unet_number):
+    #     unet_number = self.validate_unet_number(unet_number)
+    #     scaler = getattr(self, f'scaler{unet_number - 1}')
+
+    #     self.accelerator.scaler = scaler
+    #     for optimizer in self.accelerator._optimizers:
+    #         optimizer.scaler = scaler
 
     # helper print
 
@@ -613,13 +614,11 @@ class ImagenTrainer(nn.Module):
 
         self.valid_dl_iter = cycle(self.valid_dl)
 
-    def train_step(self, *, unet_number = None, **kwargs):
+    def train_step(self, unet_number = None, **kwargs):
         if not self.prepared:
             self.prepare()
         self.create_train_iter()
-
-        kwargs = {'unet_number': unet_number, **kwargs}
-        loss = self.step_with_dl_iter(self.train_dl_iter, **kwargs)
+        loss = self.step_with_dl_iter(self.train_dl_iter, unet_number = unet_number, **kwargs)
         self.update(unet_number = unet_number)
         return loss
 
@@ -928,7 +927,7 @@ class ImagenTrainer(nn.Module):
 
         if exists(self.max_grad_norm):
             self.accelerator.clip_grad_norm_(unet.parameters(), self.max_grad_norm)
-
+        
         optimizer.step()
         optimizer.zero_grad()
 
@@ -987,9 +986,10 @@ class ImagenTrainer(nn.Module):
         assert not exists(self.only_train_unet_number) or self.only_train_unet_number == unet_number, f'you can only train unet #{self.only_train_unet_number}'
 
         total_loss = 0.
-
+        #print(args[0].device)
         for chunk_size_frac, (chunked_args, chunked_kwargs) in split_args_and_kwargs(*args, split_size = max_batch_size, **kwargs):
             with self.accelerator.autocast():
+                self.accelerator.state.device = self.mydevice # Han Gao added
                 loss = self.imagen(*chunked_args, unet = self.unet_being_trained, unet_number = unet_number, **chunked_kwargs)
                 loss = loss * chunk_size_frac
 
