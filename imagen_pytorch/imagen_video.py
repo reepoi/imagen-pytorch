@@ -132,7 +132,7 @@ def masked_mean(t, *, dim, mask = None):
 def resize_video_to(
     video,
     target_image_size,
-    clamp_range = None
+    clamp_range = None,
 ):
     orig_video_size = video.shape[-1]
 
@@ -412,7 +412,7 @@ class Attention(nn.Module):
         causal = False,
         context_dim = None,
         cosine_sim_attn = False,
-        init_zero = False
+        init_zero = False,
     ):
         super().__init__()
         self.scale = dim_head ** -0.5 if not cosine_sim_attn else 1.
@@ -618,7 +618,7 @@ class Block(nn.Module):
         self,
         dim,
         dim_out,
-        groups = 8,    #I changed it 8->6
+        groups = 8,
         norm = True
     ):
         super().__init__()
@@ -649,7 +649,7 @@ class ResnetBlock(nn.Module):
         *,
         cond_dim = None,
         time_cond_dim = None,
-        groups = 8,  #I changed it 8 -> 6
+        groups = 8,
         linear_attn = False,
         use_gca = False,
         squeeze_excite = False,
@@ -1117,7 +1117,7 @@ class Unet3D(nn.Module):
         num_time_tokens = 2,
         learned_sinu_pos_emb_dim = 16,
         out_dim = None,
-        dim_mults=(1, 2, 4, 8),
+        dim_mults = (1, 2, 4, 8),
         cond_images_channels = 0,
         channels = 3,
         channels_out = None,
@@ -1137,12 +1137,12 @@ class Unet3D(nn.Module):
         cond_on_text = True,
         max_text_len = 256,
         init_dim = None,
-        resnet_groups = 8,   # I changed it 8 -> 6
+        resnet_groups = 8,
         init_conv_kernel_size = 7,          # kernel size of initial conv, if not using cross embed 7
         init_cross_embed = True,
-        init_cross_embed_kernel_sizes = (3,7,15),  #(3,7,15)
+        init_cross_embed_kernel_sizes = (3, 7, 15),
         cross_embed_downsample = False,
-        cross_embed_downsample_kernel_sizes = (2, 4),  #（2，4）
+        cross_embed_downsample_kernel_sizes = (2, 4),
         attn_pool_text = True,
         attn_pool_num_latents = 32,
         dropout = 0.,
@@ -1155,7 +1155,7 @@ class Unet3D(nn.Module):
         cosine_sim_attn = False,
         self_cond = False,
         combine_upsample_fmaps = False,      # combine feature maps from all upsample blocks, used in unet squared successfully
-        pixel_shuffle_upsample = True        # may address checkboard artifacts
+        pixel_shuffle_upsample = True,       # may address checkboard artifacts
     ):
         super().__init__()
 
@@ -1625,7 +1625,7 @@ class Unet3D(nn.Module):
             text_tokens = self.text_to_cond(text_embeds)
 
             text_tokens = text_tokens[:, :self.max_text_len]
-
+            
             if exists(text_mask):
                 text_mask = text_mask[:, :self.max_text_len]
 
@@ -1738,6 +1738,7 @@ class Unet3D(nn.Module):
                 x = temporal_attn(x, attn_bias = time_attn_bias)
 
             up_hiddens.append(x.contiguous())
+
             x = upsample(x)
 
         # whether to combine all feature maps from upsample blocks

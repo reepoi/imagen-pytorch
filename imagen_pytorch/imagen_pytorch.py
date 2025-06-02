@@ -144,7 +144,7 @@ def masked_mean(t, *, dim, mask = None):
 def resize_image_to(
     image,
     target_image_size,
-    clamp_range = None
+    clamp_range = None,
 ):
     orig_image_size = image.shape[-1]
 
@@ -1124,7 +1124,7 @@ class Unet(nn.Module):
         cosine_sim_attn = False,
         self_cond = False,
         combine_upsample_fmaps = False,      # combine feature maps from all upsample blocks, used in unet squared successfully
-        pixel_shuffle_upsample = True        # may address checkboard artifacts
+        pixel_shuffle_upsample = True,       # may address checkboard artifacts
     ):
         super().__init__()
 
@@ -1772,7 +1772,7 @@ class Imagen(nn.Module):
         p2_loss_weight_k = 1,
         dynamic_thresholding = True,
         dynamic_thresholding_percentile = 0.95,     # unsure what this was based on perusal of paper
-        only_train_unet_number = None
+        only_train_unet_number = None,
     ):
         super().__init__()
 
@@ -1880,6 +1880,7 @@ class Imagen(nn.Module):
         self.is_video = is_video
 
         self.right_pad_dims_to_datatype = partial(rearrange, pattern = ('b -> b 1 1 1' if not is_video else 'b -> b 1 1 1 1'))
+
         self.resize_to = resize_video_to if is_video else resize_image_to
 
         # cascading ddpm related stuff
@@ -2053,7 +2054,22 @@ class Imagen(nn.Module):
         dynamic_threshold = True
     ):
         b, *_, device = *x.shape, x.device
-        (model_mean, _, model_log_variance), x_start = self.p_mean_variance(unet, x = x, t = t, t_next = t_next, noise_scheduler = noise_scheduler, text_embeds = text_embeds, text_mask = text_mask, cond_images = cond_images, cond_scale = cond_scale, lowres_cond_img = lowres_cond_img, self_cond = self_cond, lowres_noise_times = lowres_noise_times, pred_objective = pred_objective, dynamic_threshold = dynamic_threshold)
+        (model_mean, _, model_log_variance), x_start = self.p_mean_variance(
+            unet,
+            x = x,
+            t = t,
+            t_next = t_next,
+            noise_scheduler = noise_scheduler,
+            text_embeds = text_embeds,
+            text_mask = text_mask,
+            cond_images = cond_images,
+            cond_scale = cond_scale,
+            lowres_cond_img = lowres_cond_img,
+            self_cond = self_cond,
+            lowres_noise_times = lowres_noise_times,
+            pred_objective = pred_objective,
+            dynamic_threshold = dynamic_threshold,
+        )
         noise = torch.randn_like(x)
         # no noise when t == 0
         is_last_sampling_timestep = (t_next == 0) if isinstance(noise_scheduler, GaussianDiffusionContinuousTimes) else (t == 0)
@@ -2142,7 +2158,7 @@ class Imagen(nn.Module):
                     lowres_noise_times = lowres_noise_times,
                     noise_scheduler = noise_scheduler,
                     pred_objective = pred_objective,
-                    dynamic_threshold = dynamic_threshold
+                    dynamic_threshold = dynamic_threshold,
                 )
 
                 if has_inpainting and not (is_last_resample_step or torch.all(is_last_timestep)):
@@ -2188,7 +2204,7 @@ class Imagen(nn.Module):
         return_all_unet_outputs = False,
         return_pil_images = False,
         device = None,
-        use_tqdm = True
+        use_tqdm = True,
     ):
         device = default(device, self.device)
         self.reset_unets_all_one_device(device = device)
@@ -2304,7 +2320,7 @@ class Imagen(nn.Module):
                     noise_scheduler = noise_scheduler,
                     pred_objective = pred_objective,
                     dynamic_threshold = dynamic_threshold,
-                    use_tqdm = use_tqdm
+                    use_tqdm = use_tqdm,
                 )
 
                 outputs.append(img)
@@ -2500,7 +2516,7 @@ class Imagen(nn.Module):
         check_shape(images, 'b c ...', c = self.channels)
         assert h >= target_image_size and w >= target_image_size
 
-        frames = images.shape[2] if is_video else None
+        frames              = images.shape[2] if is_video else None
 
         times = noise_scheduler.sample_random_times(b, device = device)
 

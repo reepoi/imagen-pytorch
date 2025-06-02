@@ -67,7 +67,7 @@ class Collator:
 
         if len(texts) == 0:
             return None
-
+        
         texts = pad_sequence(texts, True)
 
         newbatch = []
