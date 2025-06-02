@@ -8,6 +8,11 @@ This fork has the modified version in a format where its easy to view G-LED's mo
 
 - <a href="https://github.com/reepoi/imagen-pytorch/commit/bfb96171100d57c81ba6fde5fc7cf627faeb5b25">bfb96171100d57c81ba6fde5fc7cf627faeb5b25</a>: Commit containing the original G-LED vendored Imagen v1.25.9 code.
 
+To view the modifications, run
+```
+git diff 1c4075a25ff921bd0183f88d0244eab0ce5eeac4
+```
+
 Below is the original Imagen v1.25.9 readme.
 
 <img src="./imagen.png" width="450px"></img>
