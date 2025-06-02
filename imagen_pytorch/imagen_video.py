@@ -16,7 +16,7 @@ from einops.layers.torch import Rearrange, Reduce
 from einops_exts import rearrange_many, repeat_many, check_shape
 from einops_exts.torch import EinopsToAndFrom
 
-from mimagen_pytorch.t5 import t5_encode_text, get_encoded_dim, DEFAULT_T5_NAME
+from imagen_pytorch.t5 import t5_encode_text, get_encoded_dim, DEFAULT_T5_NAME
 
 # helper functions
 
@@ -149,7 +149,7 @@ def resize_video_to(
         out = out.clamp(*clamp_range)
 
     out = rearrange(out, '(b f) c h w -> b c f h w', f = frames)
-        
+
     return out
 
 # classifier free guidance functions
@@ -1625,7 +1625,7 @@ class Unet3D(nn.Module):
             text_tokens = self.text_to_cond(text_embeds)
 
             text_tokens = text_tokens[:, :self.max_text_len]
-            
+
             if exists(text_mask):
                 text_mask = text_mask[:, :self.max_text_len]
 

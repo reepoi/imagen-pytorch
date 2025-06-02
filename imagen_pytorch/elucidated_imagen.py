@@ -20,7 +20,7 @@ import kornia.augmentation as K
 from einops import rearrange, repeat, reduce
 from einops_exts import rearrange_many
 
-from mimagen_pytorch.imagen_pytorch import (
+from imagen_pytorch.imagen_pytorch import (
     GaussianDiffusionContinuousTimes,
     Unet,
     NullUnet,
@@ -42,12 +42,12 @@ from mimagen_pytorch.imagen_pytorch import (
     unnormalize_zero_to_one,
 )
 
-from mimagen_pytorch.imagen_video import (
+from imagen_pytorch.imagen_video import (
     Unet3D,
     resize_video_to
 )
 
-from mimagen_pytorch.t5 import t5_encode_text, get_encoded_dim, DEFAULT_T5_NAME
+from imagen_pytorch.t5 import t5_encode_text, get_encoded_dim, DEFAULT_T5_NAME
 
 # constants
 
@@ -428,7 +428,7 @@ class ElucidatedImagen(nn.Module):
 
         if exists(init_images):
             images += init_images
-            
+
         # keeping track of x0, for self conditioning if needed
 
         x_start = None
@@ -472,22 +472,22 @@ class ElucidatedImagen(nn.Module):
                 eps = hp.S_noise * torch.randn(shape, device=self.device)  # stochastic sampling
 
                 sigma_hat = sigma + gamma * sigma
-                
-                
-                
-                                
-                added_noise = sqrt(sigma_hat ** 2 - sigma ** 2) * eps 
-                
-                
 
-                images_hat = images + added_noise 
+
+
+
+                added_noise = sqrt(sigma_hat ** 2 - sigma ** 2) * eps
+
+
+
+                images_hat = images + added_noise
 
                 self_cond = x_start if unet.self_cond else None
-                
-                    
+
+
                 if has_inpainting:
                     images_hat = images_hat * ~inpaint_masks + (inpaint_images + added_noise) * inpaint_masks
-                        
+
 
                 ###### start gudiance
                 if physics_guidance is not None:
@@ -501,7 +501,7 @@ class ElucidatedImagen(nn.Module):
                                                                                     self_cond=self_cond,
                                                                                     **unet_kwargs))
                         for ite in range(num_ite):
-                            dRdZ = torch.autograd.functional.jacobian(RZ, images_hat) 
+                            dRdZ = torch.autograd.functional.jacobian(RZ, images_hat)
                             R_old = RZ(images_hat)
                             guide =   -dRdZ/dRdZ.norm() * torch.max(torch.norm(added_noise),torch.norm(added_noise)*0+sigma_extra)  * beta_guide #
                             #guide =   -dRdZ / dRdZ.norm() * torch.ones(dRdZ.shape).norm() * R_old.sqrt() * 10000
@@ -515,7 +515,7 @@ class ElucidatedImagen(nn.Module):
                             #                                                         **unet_kwargs)
                             R = RZ(images_hat)
                             if is_last_resample_step and is_last_timestep and ite % 9 ==0:
-                                print('Residual ' + str(R_old) + '->' +str(R) + ' Guide norm ' + str(guide.norm()))                 
+                                print('Residual ' + str(R_old) + '->' +str(R) + ' Guide norm ' + str(guide.norm()))
                 else:
                     beta_guide = 0
                 ##### end gudance
@@ -542,22 +542,22 @@ class ElucidatedImagen(nn.Module):
                 #                                                                    sigma_hat,
                 #                                                                    self_cond=self_cond,
                 #                                                                    **unet_kwargs))
-                #         dRdZ = torch.autograd.functional.jacobian(RZ, images_hat) 
+                #         dRdZ = torch.autograd.functional.jacobian(RZ, images_hat)
                 #         R = RZ(images_hat)
-                #         guide =   -dRdZ/dRdZ.norm() * torch.norm((sigma_next - sigma_hat) * (images_hat - model_output) / sigma_hat) * beta_guide #0.01  
+                #         guide =   -dRdZ/dRdZ.norm() * torch.norm((sigma_next - sigma_hat) * (images_hat - model_output) / sigma_hat) * beta_guide #0.01
                 #         if is_last_resample_step and is_last_timestep:
                 #             print('Residual ' + str(R) + ' Guide norm ' + str(guide.norm()))
                 # else:
                 #     beta_guide = 0
                 #### end gudance
-                
+
                 denoised_over_sigma = (images_hat - model_output) / sigma_hat
 
-                
+
                 images_next = images_hat + (sigma_next - sigma_hat) * denoised_over_sigma #* (1-beta_guide)
-                
-                 
-                
+
+
+
 
                 # second order correction, if not the last timestep
                 has_second_order_correction = sigma_next != 0
@@ -592,7 +592,7 @@ class ElucidatedImagen(nn.Module):
 
         if has_inpainting:
             images = images * ~inpaint_masks + inpaint_images * inpaint_masks
-        
+
         return self.unnormalize_img(images)
 
     @torch.no_grad()
@@ -797,7 +797,7 @@ class ElucidatedImagen(nn.Module):
             cond_images=None,
             **kwargs
     ):
-        #images = images.to(self.device) # Han Gao added 
+        #images = images.to(self.device) # Han Gao added
         #cond_images = cond_images.to(self.device)
         if self.is_video and images.ndim == 4:
             images = rearrange(images, 'b c h w -> b c 1 h w')
@@ -811,7 +811,7 @@ class ElucidatedImagen(nn.Module):
             self.only_train_unet_number) or self.only_train_unet_number == unet_number, 'you can only train on unet #{self.only_train_unet_number}'
 
         images = cast_uint8_images_to_float(images)
-        
+
         cond_images = maybe(cast_uint8_images_to_float)(cond_images)
 
         assert is_float_dtype(images.dtype), f'images tensor needs to be floats but {images.dtype} dtype found instead'
@@ -870,7 +870,7 @@ class ElucidatedImagen(nn.Module):
         # images = self.resize_to(images, target_image_size)
 
         # normalize to [-1, 1]
-        
+
         images = self.normalize_img(images)
         lowres_cond_img = maybe(self.normalize_img)(lowres_cond_img)
 
@@ -907,7 +907,7 @@ class ElucidatedImagen(nn.Module):
 
         noise = torch.randn_like(images)
         noised_images = images + padded_sigmas * noise  # alphas are 1. in the paper
-            
+
         # unet kwargs
         unet_kwargs = dict(
             sigma_data=hp.sigma_data,

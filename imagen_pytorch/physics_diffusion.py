@@ -18,7 +18,7 @@ import kornia.augmentation as K
 from einops import rearrange, repeat, reduce
 from einops_exts import rearrange_many
 
-from mimagen_pytorch.imagen_pytorch import (
+from imagen_pytorch.imagen_pytorch import (
     GaussianDiffusionContinuousTimes,
     Unet,
     NullUnet,
@@ -40,12 +40,12 @@ from mimagen_pytorch.imagen_pytorch import (
     unnormalize_zero_to_one,
 )
 
-from mimagen_pytorch.imagen_video import (
+from imagen_pytorch.imagen_video import (
     Unet3D,
     resize_video_to
 )
 
-from mimagen_pytorch.t5 import t5_encode_text, get_encoded_dim, DEFAULT_T5_NAME
+from imagen_pytorch.t5 import t5_encode_text, get_encoded_dim, DEFAULT_T5_NAME
 
 from data_preprocess import fft, fft_inverse
 # constants

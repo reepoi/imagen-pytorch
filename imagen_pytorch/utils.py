@@ -3,7 +3,7 @@ from torch import nn
 from functools import reduce
 from pathlib import Path
 
-from mimagen_pytorch.configs import ImagenConfig, ElucidatedImagenConfig
+from imagen_pytorch.configs import ImagenConfig, ElucidatedImagenConfig
 from ema_pytorch import EMA
 
 def exists(val):

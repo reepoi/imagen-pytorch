@@ -17,11 +17,11 @@ from torch.cuda.amp import autocast, GradScaler
 import pdb
 import pytorch_warmup as warmup
 
-from mimagen_pytorch.imagen_pytorch import Imagen, NullUnet
-from mimagen_pytorch.elucidated_imagen import ElucidatedImagen
-from mimagen_pytorch.data import cycle
+from imagen_pytorch.imagen_pytorch import Imagen, NullUnet
+from imagen_pytorch.elucidated_imagen import ElucidatedImagen
+from imagen_pytorch.data import cycle
 
-from mimagen_pytorch.version import __version__
+from imagen_pytorch.version import __version__
 from packaging import version
 
 import numpy as np
@@ -285,11 +285,11 @@ class ImagenTrainer(nn.Module):
             'mixed_precision': accelerator_mixed_precision,
             'kwargs_handlers': [DistributedDataParallelKwargs(find_unused_parameters = True)]
         , **accelerate_kwargs})
-        
+
 
         self.accelerator.state.device = device
         self.mydevice = device
-        
+
         ImagenTrainer.locked = self.is_distributed
 
         # cast data to fp16 at training time if needed
@@ -383,7 +383,7 @@ class ImagenTrainer(nn.Module):
         self.to(self.device) #original
 
 
-        
+
         # checkpointing
 
         assert not (exists(checkpoint_path) ^ exists(checkpoint_every))
@@ -473,7 +473,7 @@ class ImagenTrainer(nn.Module):
             self.unet_being_trained, self.train_dl, optimizer = self.accelerator.prepare(unet, self.train_dl, optimizer)
         else:
             self.unet_being_trained, optimizer = self.accelerator.prepare(unet, optimizer)
-            
+
 
         if exists(scheduler):
             scheduler = self.accelerator.prepare(scheduler)
@@ -927,7 +927,7 @@ class ImagenTrainer(nn.Module):
 
         if exists(self.max_grad_norm):
             self.accelerator.clip_grad_norm_(unet.parameters(), self.max_grad_norm)
-        
+
         optimizer.step()
         optimizer.zero_grad()
 
