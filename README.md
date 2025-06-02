@@ -1,3 +1,15 @@
+## Imagen - Pytorch (G-LED vendored)
+
+The code for <a href="https://www.nature.com/articles/s41467-024-53165-w">Generative learning for forecasting the dynamics of high-dimensional complex systems (G-LED)</a> vendored <a href="https://github.com/lucidrains/imagen-pytorch/releases/tag/1.25.9">Imagen v1.25.9</a> and modified it.
+This fork has the modified version in a format where its easy to view G-LED's modifications with `git diff`:
+- <a href="https://github.com/reepoi/imagen-pytorch/commit/da779a1de0b5446a99497df87058f3323ba8ccf3">da779a1de0b5446a99497df87058f3323ba8ccf3</a>: Commit removing uninformative whitespace and comment modifications to make the `git diff` output cleaner.
+
+- <a href="https://github.com/reepoi/imagen-pytorch/commit/233c21547aa6e9e7f19bf5eabba234d21b78e049">233c21547aa6e9e7f19bf5eabba234d21b78e049</a>: Commit changing the package name from G-LED's `mimagen_pytorch` to `imagen_pytorch`.
+
+- <a href="https://github.com/reepoi/imagen-pytorch/commit/bfb96171100d57c81ba6fde5fc7cf627faeb5b25">bfb96171100d57c81ba6fde5fc7cf627faeb5b25</a>: Commit containing the original G-LED vendored Imagen v1.25.9 code.
+
+Below is the original Imagen v1.25.9 readme.
+
 <img src="./imagen.png" width="450px"></img>
 
 ## Imagen - Pytorch
